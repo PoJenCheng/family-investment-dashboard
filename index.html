@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827"><link rel="manifest" href="/manifest.webmanifest">
+<title>家庭投資儀表板 V1.3</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--text:#17202a;--muted:#667085;--line:#e5e7eb;--accent:#111827;--good:#087443;--bad:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",Arial,sans-serif}
+header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);padding:12px 15px;display:flex;justify-content:space-between;align-items:center;gap:8px}h1{font-size:18px;margin:0}
+.wrap{max-width:1050px;margin:auto;padding:14px 14px 92px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}.label{font-size:12px;color:var(--muted)}.big{font-size:24px;font-weight:750;margin-top:4px}
+.btn,.tab{border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 11px;cursor:pointer}.btn.primary,.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tabs{display:flex;gap:7px;overflow:auto;margin:2px 0 12px}.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1;min-width:135px}
+input,select{width:100%;padding:9px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font-size:15px}section{display:none}.activeSection{display:block}
+.notice{padding:9px 11px;border-radius:9px;background:#f8fafc;margin:9px 0;font-size:13px}.good{color:var(--good)}.bad{color:var(--bad)}.muted{color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th:first-child,td:first-child{text-align:left}
+footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;gap:3px;padding:7px;z-index:6}.foot{padding:8px 11px;border-radius:8px;cursor:pointer}.foot.active{background:#eef2f6}
+.auth{max-width:430px;margin:55px auto}.hide{display:none!important}.chart{height:190px;display:flex;align-items:flex-end;gap:4px;border-bottom:1px solid var(--line);padding:8px}.bar{flex:1;background:#94a3b8;border-radius:3px 3px 0 0;min-width:3px}
+@media(max-width:700px){.grid{grid-template-columns:1fr 1fr}.big{font-size:19px}table{font-size:12px}.wrap{padding:10px 9px 88px}.foot{padding:8px 8px}}
+</style>
+</head>
+<body>
+<div id="auth" class="auth card">
+<h2>家庭投資儀表板</h2><p class="muted">V1.3 Cloud 版</p>
+<div id="authMsg" class="notice">請登入。第一次使用請先註冊。</div>
+<input id="email" type="email" placeholder="Email" style="margin:5px 0">
+<input id="password" type="password" placeholder="密碼（至少 6 碼）" style="margin:5px 0">
+<div class="row" style="margin-top:6px"><button class="btn primary" onclick="signIn()">登入</button><button class="btn" onclick="signUp()">註冊</button></div>
+</div>
+
+<div id="app" class="hide">
+<header><h1>家庭投資儀表板 <span class="muted">V1.3</span></h1><div class="row" style="flex-wrap:nowrap"><button class="btn" onclick="refreshPrices()">↻</button><button class="btn" onclick="signOut()">登出</button></div></header>
+<div class="wrap"><div id="status" class="notice">載入中…</div><div class="tabs" id="personTabs"></div>
+<section id="home" class="activeSection"><div class="grid">
+<div class="card"><div class="label">家庭總資產</div><div class="big" id="totalAssets">—</div></div>
+<div class="card"><div class="label">股票市值</div><div class="big" id="stockValue">—</div></div>
+<div class="card"><div class="label">現金</div><div class="big" id="cashValue">—</div></div>
+<div class="card"><div class="label">未實現損益</div><div class="big" id="unrealized">—</div></div></div>
+<div class="card" style="margin-top:10px"><h3>家庭成員</h3><div id="peopleSummary"></div></div>
+<div class="card" style="margin-top:10px"><h3>資產曲線</h3><div id="chart" class="chart"></div><div id="chartEmpty" class="muted">完成資料後會留下每日快照。</div></div></section>
+
+<section id="holdings"><div class="card"><h3>持股</h3><div style="overflow:auto"><table><thead><tr><th>人員</th><th>股票</th><th>股數</th><th>均價</th><th>現價</th><th>市值</th><th>損益</th><th>報酬</th></tr></thead><tbody id="holdingsBody"></tbody></table></div></div></section>
+
+<section id="trade"><div class="card"><h3>新增交易</h3><div class="row">
+<div><label class="label">人員</label><select id="txPerson"></select></div><div><label class="label">動作</label><select id="txType"><option value="BUY">買進</option><option value="SELL">賣出</option></select></div>
+<div><label class="label">股票</label><input id="txSymbol" placeholder="OKLO"></div><div><label class="label">股數</label><input id="txQty" type="number" min="0" step="any"></div>
+<div><label class="label">成交價 USD</label><input id="txPrice" type="number" min="0" step="0.0001"></div><div><label class="label">手續費 USD</label><input id="txFee" type="number" min="0" step="0.01" value="0"></div>
+<div><label class="label">日期</label><input id="txDate" type="date"></div></div><button class="btn primary" style="margin-top:10px" onclick="addTrade()">儲存交易</button></div>
+<div class="card" style="margin-top:10px"><h3>交易紀錄</h3><div style="overflow:auto"><table><thead><tr><th>日期</th><th>人員</th><th>動作</th><th>股票</th><th>股數</th><th>價格</th><th>總額</th></tr></thead><tbody id="txBody"></tbody></table></div></div></section>
+
+<section id="cash"><div class="card"><h3>現金流</h3><div class="row">
+<div><label class="label">人員</label><select id="cashPerson"></select></div><div><label class="label">類型</label><select id="cashType"><option value="DEPOSIT">入金</option><option value="WITHDRAW">出金</option></select></div>
+<div><label class="label">金額 USD</label><input id="cashAmount" type="number" min="0" step="0.01"></div><div><label class="label">日期</label><input id="cashDate" type="date"></div><div><label class="label">備註</label><input id="cashNote"></div></div>
+<button class="btn primary" style="margin-top:10px" onclick="addCash()">儲存現金異動</button></div>
+<div class="card" style="margin-top:10px"><h3>現金餘額</h3><div id="cashSummary"></div></div>
+<div class="card" style="margin-top:10px"><h3>現金異動紀錄</h3><div style="overflow:auto"><table><thead><tr><th>日期</th><th>人員</th><th>類型</th><th>金額</th><th>備註</th></tr></thead><tbody id="cashBody"></tbody></table></div></div></section>
+
+<section id="backup"><div class="card"><h3>備份與還原</h3>
+<p>V1.3 的交易與現金資料儲存在 Supabase 雲端資料庫。此頁提供本機完整 JSON 備份。</p>
+<div class="row"><button class="btn" onclick="exportJSON()">下載 JSON</button><label class="btn" style="text-align:center">匯入 JSON<input type="file" accept=".json" hidden onchange="importJSON(this.files[0])"></label></div>
+<div class="notice">建議每次大量交易後備份。JSON 可用於災難復原與日後資料遷移。</div><div id="dataInfo"></div></div></section>
+</div><footer><div class="foot active" onclick="showSection('home',this)">🏠 首頁</div><div class="foot" onclick="showSection('holdings',this)">📊 持股</div><div class="foot" onclick="showSection('trade',this)">🔄 交易</div><div class="foot" onclick="showSection('cash',this)">💵 現金</div><div class="foot" onclick="showSection('backup',this)">🛡 備份</div></footer>
+</div>
+
+<script type="module">
+import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
+let sb=null;
+async function initSupabase(){const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw new Error('無法取得網站設定');const cfg=await r.json();if(!cfg.supabaseUrl||!cfg.supabasePublishableKey)throw new Error('Vercel 尚未設定 Supabase Environment Variables');sb=createClient(cfg.supabaseUrl,cfg.supabasePublishableKey);}
+const PEOPLE=['老爸','老媽','博任']; let db={transactions:[],cashTx:[],snapshots:[],prices:{},fx:{usdTwd:31.15}}; let selected='全部';
+
+const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const usd=n=>'$'+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const twd=n=>new Intl.NumberFormat('zh-TW',{style:'currency',currency:'TWD',maximumFractionDigits:0}).format(n*db.fx.usdTwd);
+
+async function signUp(){let {error}=await sb.auth.signUp({email:$('email').value,password:$('password').value});$('authMsg').textContent=error?error.message:'註冊成功，若有 Email 驗證請先完成驗證後再登入。'}
+async function signIn(){let {error}=await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value});if(error)$('authMsg').textContent=error.message}
+async function signOut(){await sb.auth.signOut()}
+initSupabase().then(()=>sb.auth.onAuthStateChange(async(_,session)=>{if(session){$('auth').classList.add('hide');$('app').classList.remove('hide');await loadData();await refreshPrices()}else{$('app').classList.add('hide');$('auth').classList.remove('hide')}})).catch(e=>{$('authMsg').textContent=e.message});
+
+async function loadData(){
+  const [t,c,s]=await Promise.all([sb.from('transactions').select('*').order('trade_date'),sb.from('cash_transactions').select('*').order('cash_date'),sb.from('portfolio_snapshots').select('*').order('snapshot_date')]);
+  if(t.error||c.error||s.error){$('status').textContent='⚠️ 無法讀取雲端資料，請確認 Supabase SQL/RLS 已設定。';return}
+  db.transactions=t.data||[];db.cashTx=c.data||[];db.snapshots=s.data||[];render();
+}
+function calc(){let hs={};db.transactions.forEach(t=>{let k=t.person+'|'+t.symbol;let h=hs[k]||{person:t.person,symbol:t.symbol,qty:0,cost:0};if(t.type==='BUY'){h.cost+=t.qty*t.price+t.fee;h.qty+=t.qty}else{let avg=h.qty?h.cost/h.qty:0;h.cost-=avg*t.qty;h.qty-=t.qty}hs[k]=h});return Object.values(hs).filter(h=>h.qty>1e-7)}
+function cashByPerson(){let c={};PEOPLE.forEach(p=>c[p]=0);db.cashTx.forEach(x=>c[x.person]+=(x.type==='DEPOSIT'?1:-1)*x.amount);db.transactions.forEach(t=>c[t.person]+=(t.type==='BUY'?-1:1)*(t.qty*t.price)-(t.type==='BUY'?t.fee:-t.fee));return c}
+function render(){
+ let hs=calc(),cash=cashByPerson(), allStock=0,allUn=0;hs.forEach(h=>{let px=db.prices[h.symbol]?.price??h.cost/h.qty;allStock+=h.qty*px;allUn+=h.qty*px-h.cost});let allCash=Object.values(cash).reduce((a,b)=>a+b,0);
+ $('totalAssets').textContent=twd(allStock+allCash);$('stockValue').textContent=twd(allStock);$('cashValue').textContent=twd(allCash);$('unrealized').textContent=twd(allUn);$('unrealized').className='big '+(allUn>=0?'good':'bad');
+ $('peopleSummary').innerHTML=PEOPLE.map(p=>{let a=hs.filter(h=>h.person===p);let sv=a.reduce((s,h)=>s+h.qty*(db.prices[h.symbol]?.price??h.cost/h.qty),0),u=a.reduce((s,h)=>s+h.qty*(db.prices[h.symbol]?.price??h.cost/h.qty)-h.cost,0);return `<div class="notice"><b>${p}</b>　資產 ${twd(sv+cash[p])}　股票 ${twd(sv)}　現金 ${twd(cash[p])}　未實現 <span class="${u>=0?'good':'bad'}">${twd(u)}</span></div>`}).join('');
+ let rows=hs.filter(h=>selected==='全部'||h.person===selected);$('holdingsBody').innerHTML=rows.map(h=>{let px=db.prices[h.symbol]?.price??h.cost/h.qty,p=h.qty*px-h.cost;return `<tr><td>${esc(h.person)}</td><td>${h.symbol}</td><td>${h.qty}</td><td>${usd(h.cost/h.qty)}</td><td>${usd(px)}</td><td>${twd(h.qty*px)}</td><td class="${p>=0?'good':'bad'}">${twd(p)}</td><td>${(p/h.cost*100).toFixed(2)}%</td></tr>`}).join('')||'<tr><td colspan="8">尚無持股</td></tr>';
+ $('txBody').innerHTML=db.transactions.slice().reverse().map(t=>`<tr><td>${t.trade_date}</td><td>${t.person}</td><td>${t.type==='BUY'?'買進':'賣出'}</td><td>${t.symbol}</td><td>${t.qty}</td><td>${usd(t.price)}</td><td>${usd(t.qty*t.price+t.fee)}</td></tr>`).join('');
+ $('cashSummary').innerHTML=PEOPLE.map(p=>`<div class="notice"><b>${p}</b>：${usd(cash[p])} ≈ ${twd(cash[p])}</div>`).join('');
+ $('cashBody').innerHTML=db.cashTx.slice().reverse().map(x=>`<tr><td>${x.cash_date}</td><td>${x.person}</td><td>${x.type==='DEPOSIT'?'入金':'出金'}</td><td>${usd(x.amount)}</td><td>${esc(x.note)}</td></tr>`).join('');
+ $('dataInfo').textContent=`雲端交易 ${db.transactions.length} 筆｜現金異動 ${db.cashTx.length} 筆｜快照 ${db.snapshots.length} 筆`;
+ drawChart();
+}
+function fillPeople(){['txPerson','cashPerson'].forEach(id=>$(id).innerHTML=PEOPLE.map(p=>`<option>${p}</option>`).join(''));$('personTabs').innerHTML=['全部',...PEOPLE].map((p,i)=>`<button class="tab ${i?'':'active'}" onclick="window.selectPerson('${p}',this)">${p}</button>`).join('')}
+window.selectPerson=(p,b)=>{selected=p;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');render()}
+window.showSection=(id,el)=>{document.querySelectorAll('section').forEach(x=>x.classList.remove('activeSection'));$(id).classList.add('activeSection');document.querySelectorAll('.foot').forEach(x=>x.classList.remove('active'));el.classList.add('active')}
+window.addTrade=async()=>{let t={person:$('txPerson').value,type:$('txType').value,symbol:$('txSymbol').value.trim().toUpperCase(),qty:+$('txQty').value,price:+$('txPrice').value,fee:+$('txFee').value||0,trade_date:$('txDate').value};if(!t.symbol||t.qty<=0||t.price<=0)return alert('請完整輸入資料');let c=cashByPerson()[t.person]||0;if(t.type==='BUY'&&c<t.qty*t.price+t.fee)return alert(`現金不足，目前 ${usd(c)}`);let h=calc().find(x=>x.person===t.person&&x.symbol===t.symbol);if(t.type==='SELL'&&(!h||h.qty<t.qty))return alert('賣出股數超過持股');let {error}=await sb.from('transactions').insert(t);if(error)return alert(error.message);await loadData();$('txSymbol').value=$('txQty').value=$('txPrice').value='';}
+window.addCash=async()=>{let x={person:$('cashPerson').value,type:$('cashType').value,amount:+$('cashAmount').value,cash_date:$('cashDate').value,note:$('cashNote').value};if(x.amount<=0)return alert('請輸入金額');let {error}=await sb.from('cash_transactions').insert(x);if(error)return alert(error.message);await loadData();$('cashAmount').value=$('cashNote').value=''}
+window.refreshPrices=async()=>{let syms=[...new Set(db.transactions.map(x=>x.symbol))];$('status').textContent='正在更新市場資料…';try{let r=await fetch('/api/market?symbols='+encodeURIComponent(syms.join(',')));if(!r.ok)throw Error();let d=await r.json();db.prices={...db.prices,...d.prices};if(d.fx)db.fx=d.fx;$('status').textContent=`市場資料更新成功｜USD/TWD ${db.fx.usdTwd.toFixed(3)}｜${new Date().toLocaleString('zh-TW')}`;render();await saveSnapshot()}catch(e){$('status').textContent=`⚠️ API 暫時無法更新，使用上次成功價格｜USD/TWD ${db.fx.usdTwd.toFixed(3)}`;render()}}
+async function saveSnapshot(){let hs=calc(),cash=cashByPerson(),v=hs.reduce((s,h)=>s+h.qty*(db.prices[h.symbol]?.price??h.cost/h.qty),0)+Object.values(cash).reduce((a,b)=>a+b,0);let today=new Date().toISOString().slice(0,10);await sb.from('portfolio_snapshots').upsert({snapshot_date:today,total_usd:v})}
+function drawChart(){let a=db.snapshots.slice(-30);$('chartEmpty').style.display=a.length?'none':'block';$('chart').innerHTML=a.map(x=>`<div class="bar" style="height:${Math.max(5,((x.total_usd-Math.min(...a.map(y=>y.total_usd)))/(Math.max(...a.map(y=>y.total_usd))-Math.min(...a.map(y=>y.total_usd))||1))*90+5)}%" title="${x.snapshot_date}"></div>`).join('')}
+window.exportJSON=()=>download(`family_investment_backup_${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({version:'1.3',exportedAt:new Date().toISOString(),transactions:db.transactions,cashTx:db.cashTx,snapshots:db.snapshots},null,2),'application/json');
+function download(n,t,type){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type}));a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
+window.importJSON=file=>{if(!file)return;let r=new FileReader();r.onload=async()=>{try{let x=JSON.parse(r.result);if(!x.transactions||!x.cashTx)throw Error();let user=(await sb.auth.getUser()).data.user;let ts=x.transactions.map(({id,user_id,...t})=>({...t,user_id:user.id}));let cs=x.cashTx.map(({id,user_id,...t})=>({...t,user_id:user.id}));if(ts.length){let q=await sb.from('transactions').insert(ts);if(q.error)throw q.error}if(cs.length){let q=await sb.from('cash_transactions').insert(cs);if(q.error)throw q.error}await loadData();alert('匯入完成')}catch(e){alert('匯入失敗：'+e.message)}};r.readAsText(file)}
+function init(){let d=new Date().toISOString().slice(0,10);$('txDate').value=d;$('cashDate').value=d;fillPeople()}
+init();
+</script>
+</body></html>
