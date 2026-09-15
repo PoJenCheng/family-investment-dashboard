@@ -400,6 +400,9 @@ async function recalcAllProfitShares(){
  }
 }
 
+window.addTrade=addTrade;
+window.addCash=addCash;
+
 window.editTrade=async id=>{
  const t=db.transactions.find(x=>x.id===id);if(!t)return;
  const type=prompt('買進或賣出（BUY / SELL）',t.type);if(type!=='BUY'&&type!=='SELL')return;
