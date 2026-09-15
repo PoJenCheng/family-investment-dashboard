@@ -9,8 +9,8 @@
 <style>
 :root{--bg:#f4f6f8;--card:#fff;--text:#17202a;--muted:#667085;--line:#e5e7eb;--accent:#111827;--good:#087443;--bad:#b42318}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",Arial,sans-serif}
-header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);padding:13px 14px;display:flex;justify-content:center;align-items:center}h1{font-size:20px;font-weight:800;margin:0;text-align:center;letter-spacing:.2px}.settingsGrid{display:grid;grid-template-columns:1fr;gap:8px}.settingsGrid .btn{width:100%}.settingsNote{font-size:12px;color:var(--muted);margin-top:8px}
-.wrap{max-width:1100px;margin:auto;padding:12px 12px 88px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}.label{font-size:12px;color:var(--muted)}.big{font-size:23px;font-weight:750;margin-top:4px}
+header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);padding:13px 14px;display:flex;justify-content:center;align-items:center;min-height:50px;position:sticky}header .headerRefresh{position:absolute;right:12px;top:9px;padding:7px 9px;font-size:12px;white-space:nowrap}h1{font-size:20px;font-weight:800;margin:0;text-align:center;letter-spacing:.2px}.settingsGrid{display:grid;grid-template-columns:1fr;gap:8px}.settingsGrid .btn{width:100%}.settingsNote{font-size:12px;color:var(--muted);margin-top:8px}
+.wrap{max-width:1100px;margin:auto;padding:12px 12px 88px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}.label{font-size:12px;color:var(--muted)}.big{font-size:23px;font-weight:750;margin-top:4px}
 .btn,.tab{border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 11px;cursor:pointer}.btn.primary,.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .tabs{display:flex;gap:7px;overflow:auto;margin:2px 0 12px}.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1;min-width:135px}
 input,select{width:100%;padding:9px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font-size:15px}
@@ -36,22 +36,26 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
 <div id="app" class="hide">
 <header>
 <h1>Investment Dashboard</h1>
+<button class="btn headerRefresh" onclick="refreshPrices()">↻ 更新</button>
 </header>
 
 <div class="wrap">
 <div id="status" class="notice">載入中…</div>
 
 <section id="home" class="activeSection">
+<div class="tabs" id="homeTabs"></div>
 <div class="grid">
-<div class="card"><div class="label">家庭總資產</div><div class="big" id="totalAssets">—</div></div>
+<div class="card"><div class="label" id="totalAssetsLabel">家庭總資產</div><div class="big" id="totalAssets">—</div></div>
 <div class="card"><div class="label">股票市值</div><div class="big" id="stockValue">—</div></div>
 <div class="card"><div class="label">現金</div><div class="big" id="cashValue">—</div><div class="muted" id="cashUsd">約 USD —</div></div>
-<div class="card"><div class="label">未實現損益</div><div class="big" id="unrealized">—</div></div>
+<div class="card"><div class="label">累計投資金額</div><div class="big" id="investmentValue">—</div></div>
+<div class="card"><div class="label" id="unrealizedLabel">未實現損益</div><div class="big" id="unrealized">—</div></div>
+<div class="card"><div class="label" id="sixthLabel">已實現損益</div><div class="big" id="sixthValue">—</div></div>
 </div>
 
 <div class="card" style="margin-top:10px">
-<h3>全家股票總覽</h3>
-<div class="notice">以全家人的持股合併計算，不區分持有人。點選股票可展開詳細資訊。</div>
+<h3 id="homeStocksTitle">全家股票總覽</h3>
+<div class="notice" id="homeStocksNotice">以全家人的持股合併計算，不區分持有人。點選股票可展開詳細資訊。</div>
 <div style="overflow:auto"><table><thead><tr><th>股票</th><th>總投資成本</th><th>市值</th><th>損益</th></tr></thead><tbody id="homeStocksBody"></tbody></table></div>
 </div>
 </section>
@@ -150,7 +154,7 @@ let sb=null;
 const PEOPLE=['老爸','老媽','博任'];
 const SHARES={老爸:0.30,老媽:0.20,博任:0};
 let db={transactions:[],cashTx:[],snapshots:[],prices:{},fx:{usdTwd:31.15}};
-let selected={holdings:'全部',trade:'全部',cash:'全部'};
+let selected={home:'全部',holdings:'全部',trade:'全部',cash:'全部'};
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -230,9 +234,9 @@ function cashByPerson(){
  return c;
 }
 
-function aggregateStocks(){
+function aggregateStocks(sourceHs=calc()){
  let map={};
- calc().forEach(h=>{
+ sourceHs.forEach(h=>{
   const px=Number(db.prices[h.symbol]?.price??(h.costUsd/h.qty));
   let x=map[h.symbol]||{symbol:h.symbol,qty:0,costTwd:0,costUsd:0,valueUsd:0,valueTwd:0};
   x.qty+=h.qty;x.costTwd+=h.costTwd;x.costUsd+=h.costUsd;x.valueUsd+=h.qty*px;x.valueTwd+=h.qty*px*db.fx.usdTwd;map[h.symbol]=x;
@@ -240,44 +244,100 @@ function aggregateStocks(){
  return Object.values(map).map(x=>({...x,pnlTwd:x.valueTwd-x.costTwd,pnlPct:x.costTwd?((x.valueTwd-x.costTwd)/x.costTwd):0}));
 }
 
+function realizedProfitTwd(sourceTransactions=db.transactions, personFilter=null){
+ const groups={};
+ sourceTransactions.filter(t=>!personFilter||t.person===personFilter).slice().sort((a,b)=>String(a.trade_date).localeCompare(String(b.trade_date))||String(a.created_at||'').localeCompare(String(b.created_at||''))).forEach(t=>{
+  const key=t.person+'|'+t.symbol;
+  const g=groups[key]||{qty:0,costTwd:0,realized:0};
+  const q=Number(t.qty),price=Number(t.price),fx=Number(t.fx_rate||0),fee=Number(t.fee||0),gross=q*price*fx;
+  if(t.type==='BUY'){
+   g.qty+=q;g.costTwd+=gross+fee;
+  }else{
+   const avg=g.qty?g.costTwd/g.qty:0;
+   g.realized+=gross-fee-avg*q;
+   g.qty-=q;g.costTwd-=avg*q;
+  }
+  groups[key]=g;
+ });
+ return Object.values(groups).reduce((sum,g)=>sum+g.realized,0);
+}
+
+function currentPotentialShare(person, hs){
+ const rate=SHARES[person]||0;
+ if(!rate)return 0;
+ return hs.filter(h=>h.person===person).reduce((sum,h)=>{
+  const px=Number(db.prices[h.symbol]?.price??(h.costUsd/h.qty));
+  const saleGross=h.qty*px*db.fx.usdTwd;
+  const saleFee=saleGross*0.001;
+  const profit=saleGross-saleFee-h.costTwd;
+  return sum+(profit>0?profit*rate:0);
+ },0);
+}
+
 function render(){
- const hs=calc(),cash=cashByPerson(), stocks=aggregateStocks();
- const allStockTwd=stocks.reduce((s,x)=>s+x.valueTwd,0);
- const allCostTwd=stocks.reduce((s,x)=>s+x.costTwd,0);
- const allUn=allStockTwd-allCostTwd;
- const allCash=Object.values(cash).reduce((a,b)=>a+b,0);
-
- $('totalAssets').textContent=twd(allStockTwd+allCash);
- $('stockValue').textContent=twd(allStockTwd);
- $('cashValue').textContent=twd(allCash);
- $('cashUsd').textContent='約 USD '+Number(allCash/db.fx.usdTwd||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
- $('unrealized').textContent=twd(allUn);
- $('unrealized').className='big '+(allUn>=0?'good':'bad');
-
+ const hs=calc(),cash=cashByPerson();
+ const homeHs=selected.home==='全部'?hs:hs.filter(h=>h.person===selected.home);
+ const stocks=aggregateStocks(homeHs);
+ const stockTwd=stocks.reduce((s,x)=>s+x.valueTwd,0);
+ const costTwd=stocks.reduce((s,x)=>s+x.costTwd,0);
+ const unrealized=stockTwd-costTwd;
+ const cashTwd=selected.home==='全部'?Object.values(cash).reduce((a,b)=>a+b,0):(cash[selected.home]||0);
+ const scope=selected.home==='全部'?'家庭':selected.home;
+ const realized=realizedProfitTwd(db.transactions,selected.home==='全部'?null:selected.home);
+ const parentShare=selected.home==='全部'?0:currentPotentialShare(selected.home,hs);
+ let totalAssets=stockTwd+cashTwd, sixthLabel='已實現損益', sixthValue=realized;
+ if(selected.home==='全部'){
+  totalAssets=stockTwd+cashTwd;
+  $('unrealizedLabel').textContent='未實現損益';
+ }else if(selected.home==='老爸'||selected.home==='老媽'){
+  totalAssets=stockTwd+cashTwd-parentShare;
+  $('unrealizedLabel').textContent='未實現損益';
+  sixthLabel='未實現損益（抽成後）';
+  sixthValue=unrealized-parentShare;
+ }else if(selected.home==='博任'){
+  totalAssets=stockTwd+cashTwd+parentShare;
+  $('unrealizedLabel').textContent='未實現損益';
+  sixthLabel='未實現抽成';
+  sixthValue=parentPotentialShareForBot(hs);
+ }
+ $('totalAssetsLabel').textContent=scope+'總資產';
+ $('totalAssets').textContent=twd(totalAssets);
+ $('stockValue').textContent=twd(stockTwd);
+ $('cashValue').textContent=twd(cashTwd);
+ $('cashUsd').textContent='約 USD '+Number(cashTwd/db.fx.usdTwd||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+ $('investmentValue').textContent=twd(costTwd);
+ $('unrealized').textContent=twd(unrealized);
+ $('unrealized').className='big '+(unrealized>=0?'good':'bad');
+ $('sixthLabel').textContent=sixthLabel;
+ $('sixthValue').textContent=twd(sixthValue);
+ $('sixthValue').className='big '+(sixthValue>=0?'good':'bad');
+ $('homeStocksTitle').textContent=selected.home==='全部'?'全家股票總覽':selected.home+'股票結構';
+ $('homeStocksNotice').textContent=selected.home==='全部'?'以全家人的持股合併計算，不區分持有人。點選股票可展開詳細資訊。':`目前顯示 ${selected.home} 的股票結構。點選股票可展開詳細資訊。`;
  $('homeStocksBody').innerHTML=stocks.map(x=>`
  <tr class="clickrow" onclick="toggleHomeStock('${x.symbol}')">
  <td><b>${esc(x.symbol)}</b></td><td>${twd(x.costTwd)}</td><td>${twd(x.valueTwd)}</td>
  <td class="${x.pnlTwd>=0?'good':'bad'}">${twd(x.pnlTwd)}<br><span class="muted">${pct(x.pnlPct)}</span></td>
  </tr>
  <tr id="homeDetail_${x.symbol}" class="detail hide"><td colspan="4">
- ${stockDetailHtml(x.symbol,hs)}
+ ${stockDetailHtml(x.symbol,homeHs)}
  </td></tr>`).join('')||'<tr><td colspan="4">尚無持股</td></tr>';
-
+ renderPersonTabs('home');
  renderPersonTabs('holdings');
  renderPersonTabs('trade');
  renderPersonTabs('cash');
-
  const hrows=hs.filter(h=>selected.holdings==='全部'||h.person===selected.holdings);
  $('holdingsTitle').textContent=selected.holdings==='全部'?'全家持股':selected.holdings+'的持股';
  $('holdingsBody').innerHTML=hrows.map(h=>holdingRow(h)).join('')||'<tr><td colspan="4">尚無持股</td></tr>';
-
  const txrows=db.transactions.filter(t=>selected.trade==='全部'||t.person===selected.trade).slice().reverse();
  $('txBody').innerHTML=txrows.map(t=>tradeRow(t)).join('')||'<tr><td colspan="9">尚無交易紀錄</td></tr>';
-
  const crows=db.cashTx.filter(x=>selected.cash==='全部'||x.person===selected.cash).slice().reverse();
  $('cashSummary').innerHTML=PEOPLE.filter(p=>selected.cash==='全部'||p===selected.cash).map(p=>`
  <div class="notice"><b>${p}</b>：${twd(cash[p])}　<span class="muted">約 USD ${Number(cash[p]/db.fx.usdTwd||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>`).join('');
  $('cashBody').innerHTML=crows.map(x=>cashRow(x)).join('')||'<tr><td colspan="5">尚無現金異動</td></tr>';
+}
+
+function parentPotentialShareForBot(hs){
+ return ['老爸','老媽'].reduce((sum,p)=>sum+currentPotentialShare(p,hs),0);
 }
 
 function stockDetailHtml(symbol,hs){
