@@ -85,6 +85,14 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
 </div>
 
 <div class="card" style="margin-top:10px"><h3>交易紀錄</h3>
+<div class="tabs" id="tradeFilterTabs" style="margin-top:8px;flex-wrap:wrap;overflow:visible">
+<button class="tab" data-trade-filter="SELL" onclick="setTradeFilter('SELL')">顯示賣出</button>
+<button class="tab" data-trade-filter="BUY" onclick="setTradeFilter('BUY')">顯示買入</button>
+<button class="tab active" data-trade-filter="ALL" onclick="setTradeFilter('ALL')">全部交易</button>
+<button class="tab" data-trade-sort="DESC" onclick="setTradeSort('DESC')">從最新交易</button>
+<button class="tab" data-trade-sort="ASC" onclick="setTradeSort('ASC')">從最舊交易</button>
+</div>
+<div class="notice" id="tradeFilterNotice">目前顯示全部交易｜從最新交易開始</div>
 <div style="overflow:auto"><table><thead><tr><th>日期</th><th>動作</th><th>股票</th><th>股數</th><th>價格 USD</th><th>匯率</th><th>手續費 TWD</th><th>總額 TWD</th><th>操作</th></tr></thead><tbody id="txBody"></tbody></table></div>
 </div>
 </section>
@@ -154,7 +162,7 @@ let sb=null;
 const PEOPLE=['老爸','老媽','博任'];
 const SHARES={老爸:0.30,老媽:0.20,博任:0};
 let db={transactions:[],cashTx:[],snapshots:[],prices:{},fx:{usdTwd:31.15}};
-let selected={home:'全部',holdings:'全部',trade:'全部',cash:'全部'};
+let selected={home:'全部',holdings:'全部',trade:'全部',cash:'全部',tradeType:'ALL',tradeSort:'DESC'};
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -360,8 +368,20 @@ function render(){
  const hrows=hs.filter(h=>selected.holdings==='全部'||h.person===selected.holdings);
  $('holdingsTitle').textContent=selected.holdings==='全部'?'全家持股':selected.holdings+'的持股';
  $('holdingsBody').innerHTML=hrows.map(h=>holdingRow(h)).join('')||'<tr><td colspan="4">尚無持股</td></tr>';
- const txrows=db.transactions.filter(t=>selected.trade==='全部'||t.person===selected.trade).slice().reverse();
- $('txBody').innerHTML=txrows.map(t=>tradeRow(t)).join('')||'<tr><td colspan="9">尚無交易紀錄</td></tr>';
+ let txrows=db.transactions.filter(t=>selected.trade==='全部'||t.person===selected.trade);
+ if(selected.tradeType!=='ALL')txrows=txrows.filter(t=>t.type===selected.tradeType);
+ txrows=txrows.slice().sort((a,b)=>{
+   const d=String(a.trade_date).localeCompare(String(b.trade_date));
+   if(d!==0)return selected.tradeSort==='ASC'?d:-d;
+   const c=String(a.created_at||'').localeCompare(String(b.created_at||''));
+   return selected.tradeSort==='ASC'?c:-c;
+ });
+ const typeText=selected.tradeType==='ALL'?'全部交易':selected.tradeType==='BUY'?'顯示買入':'顯示賣出';
+ const sortText=selected.tradeSort==='DESC'?'從最新交易':'從最舊交易';
+ $('tradeFilterNotice').textContent=`目前顯示${typeText}｜${sortText}`;
+ document.querySelectorAll('[data-trade-filter]').forEach(b=>b.classList.toggle('active',b.dataset.tradeFilter===selected.tradeType));
+ document.querySelectorAll('[data-trade-sort]').forEach(b=>b.classList.toggle('active',b.dataset.tradeSort===selected.tradeSort));
+ $('txBody').innerHTML=txrows.map(t=>tradeRow(t)).join('')||'<tr><td colspan="9">尚無符合條件的交易紀錄</td></tr>';
  const crows=db.cashTx.filter(x=>selected.cash==='全部'||x.person===selected.cash).slice().reverse();
  $('cashSummary').innerHTML=PEOPLE.filter(p=>selected.cash==='全部'||p===selected.cash).map(p=>`
  <div class="notice"><b>${p}</b>：${twd(cash[p])}　<span class="muted">約 USD ${Number(cash[p]/db.fx.usdTwd||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>`).join('');
@@ -391,6 +411,9 @@ function holdingRow(h){
  人員：${esc(h.person)}　股數：${h.qty.toLocaleString()}　均價：${usd(h.costUsd/h.qty||0)}　現價：${usd(px)}　市值：${usd(valueUsd)}　損益：<span class="${pnlTwd>=0?'good':'bad'}">${twd(pnlTwd)}</span>　報酬率：${pct(h.costTwd?(pnlTwd/h.costTwd):0)}
  </td></tr>`;
 }
+
+window.setTradeFilter=filter=>{selected.tradeType=filter;render()};
+window.setTradeSort=sort=>{selected.tradeSort=sort;render()};
 
 function tradeRow(t){
  const grossUsd=Number(t.qty)*Number(t.price),grossTwd=grossUsd*Number(t.fx_rate||0),fee=Number(t.fee||0);
