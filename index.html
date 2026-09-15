@@ -225,12 +225,44 @@ function calc(){
 
 function cashByPerson(){
  let c={};PEOPLE.forEach(p=>c[p]=0);
- db.cashTx.forEach(x=>c[x.person]+=(x.type==='DEPOSIT'?1:-1)*Number(x.amount));
- db.transactions.forEach(t=>{
-  const fx=Number(t.fx_rate||0);
-  const gross=Number(t.qty)*Number(t.price)*fx;
-  c[t.person]+=(t.type==='BUY'?-gross:gross)+ (t.type==='BUY'?-1:1)*Number(t.fee||0);
+
+ // 現金 = 入金 - 買進(含買入手續費) + 實際可拿回的賣出款 - 出金。
+ // 父母賣出獲利時，只對「獲利」部分抽成；虧損時不抽成。
+ db.cashTx.forEach(x=>{
+   c[x.person]+=(x.type==='DEPOSIT'?1:-1)*Number(x.amount);
  });
+
+ const ordered=db.transactions.slice().sort((a,b)=>
+   String(a.trade_date).localeCompare(String(b.trade_date)) ||
+   String(a.created_at||'').localeCompare(String(b.created_at||''))
+ );
+ const state={};
+ for(const t of ordered){
+   const key=t.person+'|'+t.symbol;
+   const s=state[key]||{qty:0,costTwd:0};
+   const q=Number(t.qty), fx=Number(t.fx_rate||0);
+   const gross=q*Number(t.price)*fx;
+   const fee=Number(t.fee||0);
+
+   if(t.type==='BUY'){
+     c[t.person]-=gross+fee;
+     s.qty+=q;
+     s.costTwd+=gross+fee;
+   }else{
+     const avgCost=s.qty?s.costTwd/s.qty:0;
+     const costBasis=avgCost*q;
+     const netSale=gross-fee;
+     const realized=netSale-costBasis;
+     const shareRate=SHARES[t.person]||0;
+     const share=realized>0?realized*shareRate:0;
+
+     // 父母只拿到扣除獲利分成後的現金；虧損時完整拿回淨賣出收入。
+     c[t.person]+=netSale-share;
+     s.qty-=q;
+     s.costTwd-=costBasis;
+   }
+   state[key]=s;
+ }
  return c;
 }
 
