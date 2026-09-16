@@ -15,7 +15,7 @@ header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid v
 .tabs{display:flex;gap:7px;overflow:auto;margin:2px 0 12px}.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1;min-width:135px}
 input,select{width:100%;padding:9px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font-size:15px}
 section{display:none}.activeSection{display:block}.notice{padding:9px 11px;border-radius:9px;background:#f8fafc;margin:9px 0;font-size:13px}.good{color:var(--good)}.bad{color:var(--bad)}.muted{color:var(--muted)}
-table{width:100%;border-collapse:collapse;font-size:13px}.sectionTitle{display:flex;align-items:center;justify-content:space-between;gap:10px}.dailyTotal{font-size:16px;font-weight:800}.historyBox{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th:first-child,td:first-child{text-align:left}
+table{width:100%;border-collapse:collapse;font-size:13px}.sectionTitle{display:flex;align-items:center;justify-content:space-between;gap:10px}.dailyTotal{font-size:16px;font-weight:800}.historyBox{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}.metricClickable{cursor:pointer}.metricClickable:hover{background:#f8fafc}.realizedPanel{margin-top:10px}.realizedPanel h4{margin:0 0 8px}th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th:first-child,td:first-child{text-align:left}
 .clickrow{cursor:pointer}.clickrow:hover{background:#f8fafc}.detail{background:#f8fafc}.detail td{white-space:normal;text-align:left}
 .actions{display:flex;gap:6px;justify-content:flex-end}.mini{padding:5px 8px;font-size:12px}
 footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;gap:3px;padding:7px;z-index:6}.foot{padding:8px 11px;border-radius:8px;cursor:pointer}.foot.active{background:#eef2f6}
@@ -44,14 +44,17 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
 
 <section id="home" class="activeSection">
 <div class="tabs" id="homeTabs"></div>
-<div class="grid">
+<div class="grid" id="homeMetrics">
 <div class="card"><div class="label" id="totalAssetsLabel">家庭總資產</div><div class="big" id="totalAssets">—</div></div>
 <div class="card"><div class="label">股票市值</div><div class="big" id="stockValue">—</div></div>
 <div class="card"><div class="label">現金</div><div class="big" id="cashValue">—</div><div class="muted" id="cashUsd">約 USD —</div></div>
 <div class="card"><div class="label">累計投資金額</div><div class="big" id="investmentValue">—</div></div>
 <div class="card"><div class="label" id="unrealizedLabel">未實現損益</div><div class="big" id="unrealized">—</div></div>
-<div class="card"><div class="label" id="sixthLabel">已實現損益</div><div class="big" id="sixthValue">—</div></div>
+<div class="card" id="sixthCard"><div class="label" id="sixthLabel">已實現損益</div><div class="big" id="sixthValue">—</div></div>
+<div class="card hide" id="seventhCard"><div class="label" id="seventhLabel">投資累計損益</div><div class="big" id="seventhValue">—</div></div>
+<div class="card hide" id="eighthCard"><div class="label" id="eighthLabel">累計損益（抽成後）</div><div class="big" id="eighthValue">—</div></div>
 </div>
+<div id="realizedPanel" class="card realizedPanel hide"></div>
 
 <div class="card" style="margin-top:10px">
 <div class="sectionTitle"><h3 style="margin:0">當日損益總覽</h3><div class="dailyTotal" id="dailyTotal">當日損益：—</div></div>
@@ -98,7 +101,10 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
 <button class="tab" data-trade-sort="DESC" onclick="setTradeSort('DESC')">從最新交易</button>
 <button class="tab" data-trade-sort="ASC" onclick="setTradeSort('ASC')">從最舊交易</button>
 </div>
-<div class="notice" id="tradeFilterNotice">目前顯示全部交易｜從最新交易開始</div>
+<div class="row" style="margin-top:8px">
+<div><label class="label">股票代碼</label><select id="tradeSymbolFilter" onchange="setTradeSymbol(this.value)"><option value="ALL">全部股票</option></select></div>
+</div>
+<div class="notice" id="tradeFilterNotice">目前顯示全部交易｜從最新交易開始｜全部股票</div>
 <div style="overflow:auto"><table><thead><tr><th>日期</th><th>動作</th><th>股票</th><th>股數</th><th>價格 USD</th><th>匯率</th><th>手續費 TWD</th><th>總額 TWD</th><th>操作</th></tr></thead><tbody id="txBody"></tbody></table></div>
 </div>
 </section>
@@ -168,7 +174,7 @@ let sb=null;
 const PEOPLE=['老爸','老媽','博任'];
 const SHARES={老爸:0.30,老媽:0.20,博任:0};
 let db={transactions:[],cashTx:[],snapshots:[],prices:{},fx:{usdTwd:31.15}};
-let selected={home:'全部',holdings:'全部',trade:'全部',cash:'全部',tradeType:'ALL',tradeSort:'DESC'};
+let selected={home:'全部',holdings:'全部',trade:'全部',cash:'全部',tradeType:'ALL',tradeSort:'DESC',tradeSymbol:'ALL'};
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -339,6 +345,51 @@ function realizedProfitTwd(sourceTransactions=db.transactions, personFilter=null
  return Object.values(groups).reduce((sum,g)=>sum+g.realized,0);
 }
 
+function realizedDetails(personFilter=null){
+ const state={};
+ const out=[];
+ const ordered=db.transactions.filter(t=>!personFilter||t.person===personFilter).slice().sort((a,b)=>
+   String(a.trade_date).localeCompare(String(b.trade_date)) || String(a.created_at||'').localeCompare(String(b.created_at||''))
+ );
+ ordered.forEach(t=>{
+   const key=t.person+'|'+t.symbol;
+   const g=state[key]||{qty:0,costTwd:0,costUsd:0};
+   const q=Number(t.qty),price=Number(t.price),fx=Number(t.fx_rate||0),fee=Number(t.fee||0),grossTwd=q*price*fx;
+   if(t.type==='BUY'){
+     g.qty+=q; g.costTwd+=grossTwd+fee; g.costUsd+=q*price;
+   }else{
+     const avgTwd=g.qty?g.costTwd/g.qty:0;
+     const avgUsd=g.qty?g.costUsd/g.qty:0;
+     const invested=avgTwd*q;
+     const saleNet=grossTwd-fee;
+     const profit=saleNet-invested;
+     out.push({id:t.id,person:t.person,symbol:t.symbol,qty:q,buyPriceUsd:avgUsd,investedTwd:invested,sellPriceUsd:price,profitTwd:profit,profitPct:invested?profit/invested:0,tradeDate:t.trade_date});
+     g.qty-=q; g.costTwd-=invested; g.costUsd-=avgUsd*q;
+   }
+   state[key]=g;
+ });
+ return out;
+}
+
+function actualProfitShareByPerson(person){
+ return db.cashTx.filter(x=>x.auto_type==='PROFIT_SHARE' && x.source_transaction_id)
+   .reduce((sum,x)=>{
+     const src=db.transactions.find(t=>t.id===x.source_transaction_id);
+     return sum+(src&&src.person===person?Number(x.amount):0);
+   },0);
+}
+
+function renderRealizedPanel(person){
+ const rows=realizedDetails(person);
+ const total=rows.reduce((s,r)=>s+r.profitTwd,0);
+ const share=actualProfitShareByPerson(person);
+ const after=total-share;
+ const title=person==='博任'?'博任投資累計損益｜已實現交易':`${person}投資累計損益｜已實現交易`;
+ $('realizedPanel').innerHTML=`<div class="sectionTitle"><h4>${title}</h4><div class="dailyTotal ${total>=0?'good':'bad'}">累計損益：${twd(total)}</div></div>
+ <div class="notice">每一筆賣出交易依當時持股平均成本計算實際已實現損益；已賣出的股票不再計入目前累計投資金額。${person!=='博任'?`｜歷史實際抽成：${twd(share)}｜抽成後累計：${twd(after)}`:''}</div>
+ <div style="overflow:auto"><table><thead><tr><th>股票代碼</th><th>股數</th><th>買入價格</th><th>投入成本</th><th>賣出價格</th><th>實際損益</th><th>損益比例</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.symbol)}</b></td><td>${Number(r.qty).toLocaleString()}</td><td>${usd(r.buyPriceUsd)}</td><td>${twd(r.investedTwd)}</td><td>${usd(r.sellPriceUsd)}</td><td class="${r.profitTwd>=0?'good':'bad'}">${r.profitTwd>=0?'+':''}${twd(r.profitTwd)}</td><td class="${r.profitPct>=0?'good':'bad'}">${r.profitPct>=0?'+':''}${pct(r.profitPct)}</td></tr>`).join('')||'<tr><td colspan="7">尚無已賣出交易</td></tr>'}</tbody></table></div>`;
+}
+
 function currentPotentialShare(person, hs){
  const rate=SHARES[person]||0;
  if(!rate)return 0;
@@ -361,7 +412,10 @@ function render(){
  const cashTwd=selected.home==='全部'?Object.values(cash).reduce((a,b)=>a+b,0):(cash[selected.home]||0);
  const scope=selected.home==='全部'?'家庭':selected.home;
  const realized=realizedProfitTwd(db.transactions,selected.home==='全部'?null:selected.home);
+ const actualShare=selected.home==='全部'?0:actualProfitShareByPerson(selected.home);
  const parentShare=selected.home==='全部'?0:currentPotentialShare(selected.home,hs);
+ const botPotentialShare=selected.home==='博任'?parentPotentialShareForBot(hs):0;
+ const realizedAfterShare=realized-actualShare;
  let totalAssets=stockTwd+cashTwd, sixthLabel='已實現損益', sixthValue=realized;
  if(selected.home==='全部'){
   totalAssets=stockTwd+cashTwd;
@@ -372,10 +426,10 @@ function render(){
   sixthLabel='未實現損益（抽成後）';
   sixthValue=unrealized-parentShare;
  }else if(selected.home==='博任'){
-  totalAssets=stockTwd+cashTwd+parentShare;
+  totalAssets=stockTwd+cashTwd+botPotentialShare;
   $('unrealizedLabel').textContent='未實現損益';
   sixthLabel='未實現抽成';
-  sixthValue=parentPotentialShareForBot(hs);
+  sixthValue=botPotentialShare;
  }
  $('totalAssetsLabel').textContent=scope+'總資產';
  $('totalAssets').textContent=twd(totalAssets);
@@ -388,6 +442,22 @@ function render(){
  $('sixthLabel').textContent=sixthLabel;
  $('sixthValue').textContent=twd(sixthValue);
  $('sixthValue').className='big '+(sixthValue>=0?'good':'bad');
+ const personal=selected.home!=='全部';
+ $('seventhCard').classList.toggle('hide',!personal);
+ $('eighthCard').classList.toggle('hide',!personal);
+ if(personal){
+   $('seventhLabel').textContent='投資累計損益';
+   $('seventhValue').textContent=twd(realized);
+   $('seventhValue').className='big '+(realized>=0?'good':'bad');
+   $('eighthLabel').textContent=selected.home==='博任'?'實際抽成金額累計':'累計損益（抽成後）';
+   const eighth=selected.home==='博任'?actualShare:realizedAfterShare;
+   $('eighthValue').textContent=twd(eighth);
+   $('eighthValue').className='big '+(eighth>=0?'good':'bad');
+   $('seventhCard').classList.add('metricClickable');
+   $('seventhCard').onclick=()=>{const p=$('realizedPanel');p.classList.toggle('hide');if(!p.classList.contains('hide'))renderRealizedPanel(selected.home)};
+ }else{
+   $('seventhCard').onclick=null; $('eighthCard').onclick=null;
+ }
  const dailyRows=dailyPnlRows(homeHs);
  const dailyTotal=dailyRows.reduce((sum,x)=>sum+x.pnlTwd,0);
  $('dailyTotal').textContent='當日損益：'+twd(dailyTotal);
@@ -417,8 +487,14 @@ function render(){
  const hrows=hs.filter(h=>selected.holdings==='全部'||h.person===selected.holdings);
  $('holdingsTitle').textContent=selected.holdings==='全部'?'全家持股':selected.holdings+'的持股';
  $('holdingsBody').innerHTML=hrows.map(h=>holdingRow(h)).join('')||'<tr><td colspan="4">尚無持股</td></tr>';
- let txrows=db.transactions.filter(t=>selected.trade==='全部'||t.person===selected.trade);
+ const symbolScope=db.transactions.filter(t=>selected.trade==='全部'||t.person===selected.trade);
+ const symbols=[...new Set(symbolScope.map(t=>t.symbol))].sort((a,b)=>a.localeCompare(b));
+ $('tradeSymbolFilter').innerHTML='<option value="ALL">全部股票</option>'+symbols.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
+ $('tradeSymbolFilter').value=symbols.includes(selected.tradeSymbol)?selected.tradeSymbol:'ALL';
+ selected.tradeSymbol=$('tradeSymbolFilter').value;
+ let txrows=symbolScope;
  if(selected.tradeType!=='ALL')txrows=txrows.filter(t=>t.type===selected.tradeType);
+ if(selected.tradeSymbol!=='ALL')txrows=txrows.filter(t=>t.symbol===selected.tradeSymbol);
  txrows=txrows.slice().sort((a,b)=>{
    const d=String(a.trade_date).localeCompare(String(b.trade_date));
    if(d!==0)return selected.tradeSort==='ASC'?d:-d;
@@ -427,7 +503,8 @@ function render(){
  });
  const typeText=selected.tradeType==='ALL'?'全部交易':selected.tradeType==='BUY'?'顯示買入':'顯示賣出';
  const sortText=selected.tradeSort==='DESC'?'從最新交易':'從最舊交易';
- $('tradeFilterNotice').textContent=`目前顯示${typeText}｜${sortText}`;
+ const symbolText=selected.tradeSymbol==='ALL'?'全部股票':selected.tradeSymbol;
+ $('tradeFilterNotice').textContent=`目前顯示${typeText}｜${sortText}｜${symbolText}`;
  document.querySelectorAll('[data-trade-filter]').forEach(b=>b.classList.toggle('active',b.dataset.tradeFilter===selected.tradeType));
  document.querySelectorAll('[data-trade-sort]').forEach(b=>b.classList.toggle('active',b.dataset.tradeSort===selected.tradeSort));
  $('txBody').innerHTML=txrows.map(t=>tradeRow(t)).join('')||'<tr><td colspan="9">尚無符合條件的交易紀錄</td></tr>';
@@ -467,6 +544,7 @@ function holdingRow(h){
 
 window.setTradeFilter=filter=>{selected.tradeType=filter;render()};
 window.setTradeSort=sort=>{selected.tradeSort=sort;render()};
+window.setTradeSymbol=symbol=>{selected.tradeSymbol=symbol;render()};
 
 function tradeRow(t){
  const grossUsd=Number(t.qty)*Number(t.price),grossTwd=grossUsd*Number(t.fx_rate||0),fee=Number(t.fee||0);
@@ -626,7 +704,7 @@ window.openSettingsModal=()=>{$('settingsModal').classList.remove('hide')};
 window.closeSettingsModal=()=>{$('settingsModal').classList.add('hide')};
 
 window.exportJson=()=>{
- const payload={version:'V1.5',exportedAt:new Date().toISOString(),transactions:db.transactions,cash_transactions:db.cashTx,portfolio_snapshots:db.snapshots};
+ const payload={version:'V1.5.1',exportedAt:new Date().toISOString(),transactions:db.transactions,cash_transactions:db.cashTx,portfolio_snapshots:db.snapshots};
  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
  const url=URL.createObjectURL(blob);
  const a=document.createElement('a');a.href=url;a.download='investment-dashboard-backup-'+todayDate()+'.json';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
