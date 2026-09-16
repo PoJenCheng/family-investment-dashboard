@@ -9,13 +9,13 @@
 <style>
 :root{--bg:#f4f6f8;--card:#fff;--text:#17202a;--muted:#667085;--line:#e5e7eb;--accent:#111827;--good:#087443;--bad:#b42318}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",Arial,sans-serif}
-header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);padding:13px 14px;display:flex;justify-content:center;align-items:center;min-height:50px;position:sticky}header .headerRefresh{position:absolute;right:12px;top:9px;padding:7px 9px;font-size:12px;white-space:nowrap}h1{font-size:20px;font-weight:800;margin:0;text-align:center;letter-spacing:.2px}.settingsGrid{display:grid;grid-template-columns:1fr;gap:8px}.settingsGrid .btn{width:100%}.settingsNote{font-size:12px;color:var(--muted);margin-top:8px}
+header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);padding:13px 14px;display:flex;justify-content:center;align-items:center;min-height:50px}header .headerRefresh{position:absolute;right:12px;top:9px;padding:7px 9px;font-size:12px;white-space:nowrap}h1{font-size:20px;font-weight:800;margin:0;text-align:center;letter-spacing:.2px}.settingsGrid{display:grid;grid-template-columns:1fr;gap:8px}.settingsGrid .btn{width:100%}.settingsNote{font-size:12px;color:var(--muted);margin-top:8px}
 .wrap{max-width:1100px;margin:auto;padding:12px 12px 88px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}.label{font-size:12px;color:var(--muted)}.big{font-size:23px;font-weight:750;margin-top:4px}
 .btn,.tab{border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 11px;cursor:pointer}.btn.primary,.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .tabs{display:flex;gap:7px;overflow:auto;margin:2px 0 12px}.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1;min-width:135px}
 input,select{width:100%;padding:9px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font-size:15px}
 section{display:none}.activeSection{display:block}.notice{padding:9px 11px;border-radius:9px;background:#f8fafc;margin:9px 0;font-size:13px}.good{color:var(--good)}.bad{color:var(--bad)}.muted{color:var(--muted)}
-table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th:first-child,td:first-child{text-align:left}
+table{width:100%;border-collapse:collapse;font-size:13px}.sectionTitle{display:flex;align-items:center;justify-content:space-between;gap:10px}.dailyTotal{font-size:16px;font-weight:800}.historyBox{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th:first-child,td:first-child{text-align:left}
 .clickrow{cursor:pointer}.clickrow:hover{background:#f8fafc}.detail{background:#f8fafc}.detail td{white-space:normal;text-align:left}
 .actions{display:flex;gap:6px;justify-content:flex-end}.mini{padding:5px 8px;font-size:12px}
 footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;gap:3px;padding:7px;z-index:6}.foot{padding:8px 11px;border-radius:8px;cursor:pointer}.foot.active{background:#eef2f6}
@@ -26,7 +26,7 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
 </head>
 <body>
 <div id="auth" class="auth card">
-<h2>家庭投資儀表板</h2><p class="muted">V1.4 Cloud 版</p>
+<h2>家庭投資儀表板</h2><p class="muted">V1.5 Cloud 版</p>
 <div id="authMsg" class="notice">請登入。第一次使用請先註冊。</div>
 <input id="email" type="email" placeholder="Email" style="margin:5px 0">
 <input id="password" type="password" placeholder="密碼（至少 6 碼）" style="margin:5px 0">
@@ -51,6 +51,12 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
 <div class="card"><div class="label">累計投資金額</div><div class="big" id="investmentValue">—</div></div>
 <div class="card"><div class="label" id="unrealizedLabel">未實現損益</div><div class="big" id="unrealized">—</div></div>
 <div class="card"><div class="label" id="sixthLabel">已實現損益</div><div class="big" id="sixthValue">—</div></div>
+</div>
+
+<div class="card" style="margin-top:10px">
+<div class="sectionTitle"><h3 style="margin:0">當日損益總覽</h3><div class="dailyTotal" id="dailyTotal">當日損益：—</div></div>
+<div class="notice" id="dailyNotice">依目前市場價格與前一交易日收盤價計算。每日收盤後可查看當日損益。</div>
+<div style="overflow:auto"><table><thead><tr><th>股票</th><th>當前股價</th><th>漲跌金額</th><th>漲跌比例</th><th>損益</th></tr></thead><tbody id="dailyBody"></tbody></table></div>
 </div>
 
 <div class="card" style="margin-top:10px">
@@ -274,6 +280,37 @@ function cashByPerson(){
  return c;
 }
 
+function dailyPnlRows(sourceHs){
+ let map={};
+ sourceHs.forEach(h=>{
+   const price=Number(db.prices[h.symbol]?.price);
+   const previous=Number(db.prices[h.symbol]?.previousClose);
+   const missingClose=!Number.isFinite(price)||!Number.isFinite(previous);
+   const current=Number.isFinite(price)?price:Number(h.costUsd/h.qty||0);
+   const change=missingClose?0:current-previous;
+   const changePct=missingClose||previous===0?0:change/previous;
+   const pnlTwd=missingClose?0:h.qty*change*db.fx.usdTwd;
+   const x=map[h.symbol]||{symbol:h.symbol,qty:0,price:current,change:change,changePct:changePct,pnlTwd:0,missingClose:false};
+   x.qty+=h.qty; x.pnlTwd+=pnlTwd;
+   x.price=current; x.change=change; x.changePct=changePct; x.missingClose=x.missingClose||missingClose;
+   map[h.symbol]=x;
+ });
+ return Object.values(map).sort((a,b)=>a.symbol.localeCompare(b.symbol));
+}
+
+function holdingHistoryHtml(symbol, personFilter){
+ const list=db.transactions.filter(t=>t.symbol===symbol && (!personFilter||t.person===personFilter)).slice().sort((a,b)=>
+   String(a.trade_date).localeCompare(String(b.trade_date)) || String(a.created_at||'').localeCompare(String(b.created_at||''))
+ );
+ if(!list.length)return '<div class="historyBox muted">尚無交易歷史紀錄</div>';
+ return `<div class="historyBox"><b>交易歷史紀錄</b><div style="overflow:auto;margin-top:6px"><table><thead><tr><th>日期</th><th>人員</th><th>動作</th><th>股票</th><th>股數</th><th>價格 USD</th><th>匯率</th><th>手續費 TWD</th><th>交易金額 TWD</th></tr></thead><tbody>${list.map(t=>{
+   const gross=Number(t.qty)*Number(t.price)*Number(t.fx_rate||0);
+   const fee=Number(t.fee||0);
+   const amount=gross+(t.type==='BUY'?fee:-fee);
+   return `<tr><td>${t.trade_date}</td><td>${esc(t.person)}</td><td>${t.type==='BUY'?'買進':'賣出'}</td><td>${esc(t.symbol)}</td><td>${Number(t.qty).toLocaleString()}</td><td>${usd(t.price)}</td><td>${Number(t.fx_rate||0).toFixed(4)}</td><td>${twd(fee)}</td><td>${twd(amount)}</td></tr>`;
+ }).join('')}</tbody></table></div></div>`;
+}
+
 function aggregateStocks(sourceHs=calc()){
  let map={};
  sourceHs.forEach(h=>{
@@ -351,6 +388,18 @@ function render(){
  $('sixthLabel').textContent=sixthLabel;
  $('sixthValue').textContent=twd(sixthValue);
  $('sixthValue').className='big '+(sixthValue>=0?'good':'bad');
+ const dailyRows=dailyPnlRows(homeHs);
+ const dailyTotal=dailyRows.reduce((sum,x)=>sum+x.pnlTwd,0);
+ $('dailyTotal').textContent='當日損益：'+twd(dailyTotal);
+ $('dailyTotal').className='dailyTotal '+(dailyTotal>=0?'good':'bad');
+ $('dailyNotice').textContent=`${scope}當日損益｜依目前股價與前一交易日收盤價計算${dailyRows.some(x=>x.missingClose)?'｜部分股票缺少前一交易日收盤價':''}`;
+ $('dailyBody').innerHTML=dailyRows.map(x=>`
+ <tr>
+ <td><b>${esc(x.symbol)}</b></td><td>${usd(x.price)}</td>
+ <td class="${x.change>=0?'good':'bad'}">${x.change>=0?'+':''}${usd(x.change)}</td>
+ <td class="${x.changePct>=0?'good':'bad'}">${x.missingClose?'—':(x.changePct>=0?'+':'')+pct(x.changePct)}</td>
+ <td class="${x.pnlTwd>=0?'good':'bad'}">${x.missingClose?'—':(x.pnlTwd>=0?'+':'')+twd(x.pnlTwd)}</td>
+ </tr>`).join('')||'<tr><td colspan="5">尚無持股</td></tr>';
  $('homeStocksTitle').textContent=selected.home==='全部'?'全家股票總覽':selected.home+'股票結構';
  $('homeStocksNotice').textContent=selected.home==='全部'?'以全家人的持股合併計算，不區分持有人。點選股票可展開詳細資訊。':`目前顯示 ${selected.home} 的股票結構。點選股票可展開詳細資訊。`;
  $('homeStocksBody').innerHTML=stocks.map(x=>`
@@ -405,10 +454,14 @@ function stockDetailHtml(symbol,hs){
 function holdingRow(h){
  const px=Number(db.prices[h.symbol]?.price??h.costUsd/h.qty);
  const valueUsd=h.qty*px,valueTwd=valueUsd*db.fx.usdTwd,pnlTwd=valueTwd-h.costTwd;
+ const historyScope=selected.holdings==='全部'?null:h.person;
+ const hid='holdHistory_'+(selected.holdings==='全部'?'ALL':h.person)+'_'+h.symbol;
  return `<tr class="clickrow" onclick="toggleHolding('${h.person}','${h.symbol}')">
  <td><b>${esc(h.symbol)}</b></td><td>${usd(px)}</td><td>${usd(valueUsd)}</td><td class="${pnlTwd>=0?'good':'bad'}">${twd(pnlTwd)}</td></tr>
- <tr id="holdDetail_${esc(h.person)}_${esc(h.symbol)}" class="detail hide"><td colspan="4">
- 人員：${esc(h.person)}　股數：${h.qty.toLocaleString()}　均價：${usd(h.costUsd/h.qty||0)}　現價：${usd(px)}　市值：${usd(valueUsd)}　損益：<span class="${pnlTwd>=0?'good':'bad'}">${twd(pnlTwd)}</span>　報酬率：${pct(h.costTwd?(pnlTwd/h.costTwd):0)}
+ <tr id="holdDetail_${esc(h.person)}_${esc(h.symbol)}" class="detail hide"><td colspan="4" onclick="event.stopPropagation();toggleHoldingHistory('${hid}')">
+ <div>人員：${esc(h.person)}　股數：${h.qty.toLocaleString()}　均價：${usd(h.costUsd/h.qty||0)}　現價：${usd(px)}　市值：${usd(valueUsd)}　損益：<span class="${pnlTwd>=0?'good':'bad'}">${twd(pnlTwd)}</span>　報酬率：${pct(h.costTwd?(pnlTwd/h.costTwd):0)}</div>
+ <div class="muted" style="margin-top:6px">再次點選此詳細資訊，可查看這支股票的全部交易歷史紀錄</div>
+ <div id="${hid}" class="hide">${holdingHistoryHtml(h.symbol,historyScope)}</div>
  </td></tr>`;
 }
 
@@ -443,6 +496,7 @@ window.showSection=(id,el)=>{
 
 window.toggleHomeStock=s=>{$('homeDetail_'+s).classList.toggle('hide')};
 window.toggleHolding=(p,s)=>{$('holdDetail_'+p+'_'+s).classList.toggle('hide')};
+window.toggleHoldingHistory=id=>{$(id).classList.toggle('hide')};
 
 function fillPeople(){
  ['txPerson','cashPerson'].forEach(id=>$(id).innerHTML=PEOPLE.map(p=>`<option>${p}</option>`).join(''));
@@ -572,7 +626,7 @@ window.openSettingsModal=()=>{$('settingsModal').classList.remove('hide')};
 window.closeSettingsModal=()=>{$('settingsModal').classList.add('hide')};
 
 window.exportJson=()=>{
- const payload={version:'V1.4',exportedAt:new Date().toISOString(),transactions:db.transactions,cash_transactions:db.cashTx,portfolio_snapshots:db.snapshots};
+ const payload={version:'V1.5',exportedAt:new Date().toISOString(),transactions:db.transactions,cash_transactions:db.cashTx,portfolio_snapshots:db.snapshots};
  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
  const url=URL.createObjectURL(blob);
  const a=document.createElement('a');a.href=url;a.download='investment-dashboard-backup-'+todayDate()+'.json';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
