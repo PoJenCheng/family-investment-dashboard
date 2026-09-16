@@ -371,7 +371,7 @@ function realizedDetails(personFilter=null){
  return out;
 }
 
-function actualProfitShareByPerson(person){
+function actualProfitShareByParent(person){
  return db.cashTx.filter(x=>x.auto_type==='PROFIT_SHARE' && x.source_transaction_id)
    .reduce((sum,x)=>{
      const src=db.transactions.find(t=>t.id===x.source_transaction_id);
@@ -379,10 +379,19 @@ function actualProfitShareByPerson(person){
    },0);
 }
 
+function actualProfitShareReceivedByBot(){
+ // 博任的實際抽成累計 = 老爸、老媽歷史上已實際支付的所有獲利分成。
+ return db.cashTx.filter(x=>x.auto_type==='PROFIT_SHARE' && x.source_transaction_id)
+   .reduce((sum,x)=>{
+     const src=db.transactions.find(t=>t.id===x.source_transaction_id);
+     return sum+(src && (src.person==='老爸'||src.person==='老媽') ? Number(x.amount) : 0);
+   },0);
+}
+
 function renderRealizedPanel(person){
  const rows=realizedDetails(person);
  const total=rows.reduce((s,r)=>s+r.profitTwd,0);
- const share=actualProfitShareByPerson(person);
+ const share=person==='博任'?actualProfitShareReceivedByBot():actualProfitShareByParent(person);
  const after=total-share;
  const title=person==='博任'?'博任投資累計損益｜已實現交易':`${person}投資累計損益｜已實現交易`;
  $('realizedPanel').innerHTML=`<div class="sectionTitle"><h4>${title}</h4><div class="dailyTotal ${total>=0?'good':'bad'}">累計損益：${twd(total)}</div></div>
@@ -412,7 +421,7 @@ function render(){
  const cashTwd=selected.home==='全部'?Object.values(cash).reduce((a,b)=>a+b,0):(cash[selected.home]||0);
  const scope=selected.home==='全部'?'家庭':selected.home;
  const realized=realizedProfitTwd(db.transactions,selected.home==='全部'?null:selected.home);
- const actualShare=selected.home==='全部'?0:actualProfitShareByPerson(selected.home);
+ const actualShare=selected.home==='全部'?0:(selected.home==='博任'?actualProfitShareReceivedByBot():actualProfitShareByParent(selected.home));
  const parentShare=selected.home==='全部'?0:currentPotentialShare(selected.home,hs);
  const botPotentialShare=selected.home==='博任'?parentPotentialShareForBot(hs):0;
  const realizedAfterShare=realized-actualShare;
