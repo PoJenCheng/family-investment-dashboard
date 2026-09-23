@@ -289,12 +289,16 @@ function cashByPerson(){
 function dailyPnlRows(sourceHs){
  let map={};
  sourceHs.forEach(h=>{
-   const price=Number(db.prices[h.symbol]?.price);
-   const previous=Number(db.prices[h.symbol]?.previousClose);
-   const missingClose=!Number.isFinite(price)||!Number.isFinite(previous);
-   const current=Number.isFinite(price)?price:Number(h.costUsd/h.qty||0);
+   const priceRaw=db.prices[h.symbol]?.price;
+   const previousRaw=db.prices[h.symbol]?.previousClose;
+   const price=Number(priceRaw);
+   const previous=Number(previousRaw);
+   // 不可把 null/undefined 轉成 0；否則會被誤判為前收為 0，
+   // 造成漲跌金額變成「目前股價」，而漲跌比例顯示 0%。
+   const missingClose=!Number.isFinite(price)||price<=0||!Number.isFinite(previous)||previous<=0;
+   const current=Number.isFinite(price)&&price>0?price:Number(h.costUsd/h.qty||0);
    const change=missingClose?0:current-previous;
-   const changePct=missingClose||previous===0?0:change/previous;
+   const changePct=missingClose?0:change/previous;
    const pnlTwd=missingClose?0:h.qty*change*db.fx.usdTwd;
    const x=map[h.symbol]||{symbol:h.symbol,qty:0,price:current,change:change,changePct:changePct,pnlTwd:0,missingClose:false};
    x.qty+=h.qty; x.pnlTwd+=pnlTwd;
